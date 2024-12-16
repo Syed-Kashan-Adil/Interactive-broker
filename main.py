@@ -125,3 +125,30 @@ async def get_accounts(client_id: int = Query(..., description="Unique client ID
     except Exception as e:
         print(f"Accounts Exception for clientId {client_id}: {e}")
         return {"status": False, "message": f"Error: {e}", "accounts": [], "clientId": client_id}
+    
+
+@app.get("/account-detail")
+async def get_accounts(client_id: int = Query(..., description="Unique client ID for the IB connection")):
+    try:
+        
+        if client_id not in ib_connections:
+            return {"status": False, "message": "No connection found for clientId", "clientId": client_id}
+
+        ib = ib_connections[client_id]
+
+        if not ib.isConnected():
+            return {"status": False, "message": "Not connected", "clientId": client_id}
+
+        # Fetch account summary within the current event loop
+        accounts = await ib.accountSummaryAsync()
+        net_liquidity = None
+        currency = None
+        for item in accounts:
+             if item.tag == 'NetLiquidation':
+                net_liquidity = item.value
+                currency = item.currency
+                break
+        return {"status": True, "message": "Accounts retrieved successfully", "accounts": accounts,"currency": currency, "net_liquidity" : net_liquidity, "clientId": client_id}
+    except Exception as e:
+        print(f"Accounts Exception for clientId {client_id}: {e}")
+        return {"status": False, "message": f"Error: {e}", "accounts": [], "clientId": client_id}
