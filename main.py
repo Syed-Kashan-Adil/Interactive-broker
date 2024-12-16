@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Query
-from ib_insync import IB
+from ib_insync import IB, PnL
 import asyncio
 from typing import Dict
 from threading import Lock
@@ -32,6 +32,7 @@ async def connect_ib(request: ConnectRequest):
     """
     Connect to the Interactive Brokers account using the specified client ID.
     """
+    ib = None  # Initialize `ib` to ensure it's always defined
     try:
         async with lock:  # Use asyncio.Lock for async locking
             if (
@@ -39,12 +40,22 @@ async def connect_ib(request: ConnectRequest):
                 and ib_connections[request.client_id].isConnected()
             ):
                 accounts = await ib_connections[request.client_id].accountSummaryAsync()
+
+                net_liquidity = None
+                currency = None
+                for item in accounts:
+                    if item.tag == 'NetLiquidation':
+                        net_liquidity = item.value
+                        currency = item.currency
+                        break
                 return {
                     "status": True,
                     "message": "Already connected",
                     "data": {
                         "clientId": request.client_id,
-                        "accounts": accounts,
+                        "net_liquidity": net_liquidity,
+                        "currency": currency,
+                        "account_id": accounts[0].account,
                     }
                 }
 
@@ -57,13 +68,24 @@ async def connect_ib(request: ConnectRequest):
 
         if ib.isConnected():
             accounts = await ib.accountSummaryAsync()
+
+            net_liquidity = None
+            currency = None
+            for item in accounts:
+                if item.tag == 'NetLiquidation':
+                    net_liquidity = item.value
+                    currency = item.currency
+                    break
+                        
             print(f"IB Connection Successful with clientId: {request.client_id}")
             return {
                 "status": True,
                 "message": "Connected",
                 "data": {
                     "clientId": request.client_id,
-                    "accounts": accounts,
+                    "net_liquidity": net_liquidity,
+                    "currency": currency,
+                    "account_id": accounts[0].account
                 }
             }
         else:
