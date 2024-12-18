@@ -319,8 +319,34 @@ async def get_orders(client_id: int = Query(..., description="Unique client ID f
         if not ib.isConnected():
             return {"status": False, "message": "Not connected", "clientId": client_id}
 
-        open_orders = ib.openOrders()
-        return {"status": True, "message": "Orders cancelled successfully", "clientId": client_id, "orders": open_orders}
+        # Fetch open trades
+        open_trades = ib.trades()
+
+        # Extract order and contract details
+        orders_with_contracts = []
+        for trade in open_trades:
+            order = trade.order
+            contract = trade.contract
+
+            order_data = {
+                "orderId": order.orderId,
+                "clientId": order.clientId,
+                "permId": order.permId,
+                "action": order.action,
+                "totalQuantity": order.totalQuantity,
+                "orderType": order.orderType,
+                "lmtPrice": order.lmtPrice,
+                "auxPrice": order.auxPrice,
+                "tif": order.tif,
+                "symbol": contract.symbol,
+                "exchange": contract.exchange,
+                "currency": contract.currency,
+                "orderStatus": trade.orderStatus
+            }
+            orders_with_contracts.append(order_data)
+
+        return {"status": True, "message": "Fetched orders successfully", "clientId": client_id, "orders": orders_with_contracts}
     except Exception as e:
-        print(f"Flatten Order Exception for clientId {client_id}: {e}")
+        print(f"Error while fetching orders for clientId {client_id}: {e}")
         return {"status": False, "message": f"Error: {e}", "clientId": client_id}
+
