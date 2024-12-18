@@ -319,10 +319,8 @@ async def get_orders(client_id: int = Query(..., description="Unique client ID f
         if not ib.isConnected():
             return {"status": False, "message": "Not connected", "clientId": client_id}
 
-        # Fetch open trades
-        open_trades = ib.trades()
+        open_trades = ib.openTrades()
 
-        # Extract order and contract details
         orders_with_contracts = []
         for trade in open_trades:
             order = trade.order
