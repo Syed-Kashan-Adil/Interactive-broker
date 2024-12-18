@@ -215,20 +215,23 @@ async def place_gtc_orders(request: OrderRequest):
 
         market_order = MarketOrder('BUY', request.position_qty)
         ib.placeOrder(contract, market_order)
+        ib.sleep(2)
         
         # Stop-Loss Order: A StopOrder will be placed as a stop-loss GTC order
         stop_loss_order = StopOrder('SELL', abs(request.position_qty), request.stop_price) #low-forecast
         stop_loss_order.tif = request.tif  # Good-Til-Canceled
         ib.placeOrder(contract, stop_loss_order)
         print(f"Placed Stop-Loss GTC Order (StopOrder): {stop_loss_order}")
+        ib.sleep(2)
 
         # Profit Target Order: A LimitOrder will be placed as a profit target GTC order
         profit_target_order = LimitOrder('SELL', abs(request.position_qty), request.limit_price) #high forecast
         profit_target_order.tif = request.tif  # Good-Til-Canceled
         ib.placeOrder(contract, profit_target_order)
         print(f"Placed Profit Target GTC Order (LimitOrder): {profit_target_order}")
+        ib.sleep(2)
 
-        positions = ib.positions()
+        positions = ib.reqPositions()
         symbol_position = next((pos for pos in positions if pos.contract.symbol == request.symbol), None)
 
         return {"status": True, "message": "Orders placed successfully", "clientId": request.client_id, "position": symbol_position}
@@ -247,14 +250,30 @@ async def flatten_order(request: FlattenOrderRequest):
 
         if not ib.isConnected():
             return {"status": False, "message": "Not connected", "clientId": request.client_id}
+        
+        trades = ib.openTrades()
 
-        # Step 1: Create a Contract object
+        symbol_trades = [trade for trade in trades if trade.contract.symbol == request.symbol]
+
+        if not symbol_trades:
+            return {
+                "status": False,
+                "message": f"No open trades found for symbol: {symbol}",
+                "clientId": client_id
+            }
+        
+        for trade in symbol_trades:
+            try:
+                ib.cancelOrder(trade.order)
+            except Exception as e:
+                print(f"Failed to cancel order {trade.order.orderId} for symbol {symbol}: {e}")
+
         contract = Stock(request.symbol, request.exchange, request.currency)
         ib.qualifyContracts(contract)  # Ensure contract is valid
         print(f"Qualified Contract: {contract}")
 
         # Step 2: Get positions and find the relevant position quantity
-        positions = ib.positions()
+        positions = ib.reqPositions()
         position_qty = None  # Initialize position_qty variable
 
         for pos in positions:
@@ -282,7 +301,7 @@ async def flatten_order(request: FlattenOrderRequest):
         ib.placeOrder(contract, flatten_order)
         print(f"Placed Flatten Order: {flatten_order}")
 
-        return {"status": True, "message": "Position flattened successfully", "clientId": request.client_id, "position": position_qty}
+        return {"status": True, "message": "Symbol flatten successfully", "clientId": request.client_id, "position": position_qty}
     
     except Exception as e:
         print(f"Flatten Order Exception for clientId {request.client_id}: {e}")
@@ -301,7 +320,7 @@ async def get_contracts_position(client_id: int = Query(..., description="Unique
             return {"status": False, "message": "Not connected", "clientId": client_id}
     
         # Fetch contracts position within the current event loop
-        positions = ib.positions()
+        positions = ib.reqPositions()
         return {"status": True, "message": "Contracts position retrieved successfully", "positions": positions, "clientId": client_id}
     except Exception as e:
         print(f"Flatten Order Exception for clientId {client_id}: {e}")
